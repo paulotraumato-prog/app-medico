@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🩺 RenovaReceitas</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
+        body { background: #f0f2f5; padding: 20px; }
+        .container { max-width: 500px; margin: 0 auto; }
+        .card { background: white; padding: 30px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1 { color: #2c7fb8; text-align: center; margin-bottom: 10px; }
+        .step { display: none; }
+        .active { display: block; }
+        .btn { background: #2c7fb8; color: white; border: none; padding: 12px; border-radius: 5px; width: 100%; margin: 10px 0; cursor: pointer; }
+        input, textarea { width: 100%; padding: 10px; margin: 5px 0; border: 1px solid #ddd; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>🩺 RenovaReceitas</h1>
+            <p style="text-align: center; color: #666; margin-bottom: 20px;">Renovação de receitas médicas online</p>
+
+            <div id="step1" class="step active">
+                <h2>Seus Dados</h2>
+                <input type="text" id="nome" placeholder="Nome completo">
+                <input type="email" id="email" placeholder="E-mail">
+                <input type="text" id="cpf" placeholder="CPF">
+                <button class="btn" onclick="showStep(2)">Continuar</button>
+            </div>
+
+            <div id="step2" class="step">
+                <h2>Descrição</h2>
+                <textarea id="descricao" placeholder="Descreva o que precisa renovar..." rows="4"></textarea>
+                <button class="btn" onclick="showStep(3)">Continuar</button>
+            </div>
+
+            <div id="step3" class="step">
+                <h2>Pagamento PIX</h2>
+                <p style="text-align: center; font-size: 24px; margin: 10px 0;">R$ 59,99</p>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 5px; text-align: center; margin: 15px 0;">
+                    <strong>Chave PIX:</strong><br>
+                    00020126580014br.gov.bcb.pix0136...
+                </div>
+                <button class="btn" onclick="processarPagamento()">Já paguei</button>
+            </div>
+
+            <div id="step4" class="step">
+                <h2 style="color: green; text-align: center;">✅ Pedido Confirmado!</h2>
+                <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <strong>📋 Dados recebidos</strong>
+                </div>
+                <div style="background: #e8f5e8; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <strong>💳 Pagamento confirmado</strong>
+                </div>
+                <div style="background: #fff3cd; padding: 10px; border-radius: 5px; margin: 10px 0;">
+                    <strong>👨‍⚕️ Em análise médica</strong>
+                </div>
+                <button class="btn" onclick="showStep(1)">Novo Pedido</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+            document.getElementById('step' + step).classList.add('active');
+        }
+        function processarPagamento() {
+            setTimeout(() => showStep(4), 1000);
+        }
+    </script>
+</body>
+</html>

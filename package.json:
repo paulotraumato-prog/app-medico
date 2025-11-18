@@ -1,0 +1,15 @@
+{
+  "name": "app-receitas-medicas",
+  "version": "1.0.0",
+  "description": "App para renovação de receitas médicas",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "engines": {
+    "node": "18.x"
+  }
+}

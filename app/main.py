@@ -136,7 +136,7 @@ async def criar_pagamento_pix(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not mp:
+    if not MERCADOPAGO_ACCESS_TOKEN:
         raise HTTPException(
             status_code=500,
             detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).'
@@ -172,9 +172,47 @@ async def criar_pagamento_pix(
     }
 
     try:
-        preference_response = mp.preference().create(preference_data)
-        init_point = preference_response["response"]["init_point"]
+        import requests
+        
+        headers = {
+            "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
+            "Content-Type": "application/json"
+        }
+        
+        response = requests.post(
+            "https://api.mercadopago.com/checkout/preferences",
+            json=preference_data,
+            headers=headers
+        )
+        
+        print("=== STATUS CODE ===")
+        print(response.status_code)
+        print("=== RESPOSTA MERCADO PAGO ===")
+        print(response.json())
+        print("=============================")
+        
+        if response.status_code != 201:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro do Mercado Pago: {response.json()}"
+            )
+        
+        data = response.json()
+        init_point = data.get("init_point")
+        
+        if not init_point:
+            raise HTTPException(
+                status_code=500,
+                detail=f"init_point não encontrado. Resposta: {data}"
+            )
+        
         return {"checkout_url": init_point}
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro de conexão com Mercado Pago: {str(e)}"
+        )
     except Exception as e:
         raise HTTPException(
             status_code=500,

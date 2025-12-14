@@ -13,13 +13,16 @@
         button{width:100%;margin-top:20px;padding:10px;background:#1976d2;color:#fff;border:none;border-radius:4px;font-size:15px;cursor:pointer}
         button:hover{background:#115293}
         .link{margin-top:12px;text-align:center;font-size:14px}
-        .error{color:#d32f2f;font-size:13px;margin-top:8px;text-align:center;display:none}
+        .error{color:#d32f2f;font-size:13px;margin-top:8px;text-align:center;}
     </style>
 </head>
 <body>
 <div class="container">
     <h1>App Médico</h1>
-    <form id="loginForm" method="post" action="/login">
+    {% if request.query_params.get('error') == '1' %}
+        <p class="error">Email ou senha incorretos.</p>
+    {% endif %}
+    <form method="post" action="/login">
         <label for="email">Email</label>
         <input type="email" id="email" name="email" required>
 
@@ -27,33 +30,10 @@
         <input type="password" id="password" name="password" required>
 
         <button type="submit">Entrar</button>
-        <p id="errorMsg" class="error">Email ou senha incorretos</p>
     </form>
     <div class="link">
         <a href="/register">Criar conta</a>
     </div>
 </div>
-
-<script>
-document.getElementById('loginForm').addEventListener('submit', async function(e){
-    e.preventDefault();
-    const formData = new FormData(this);
-    const resp = await fetch('/login', {
-        method: 'POST',
-        body: formData
-    });
-    if(resp.status === 303){
-        // redirecionamento
-        window.location.href = '/';
-        return;
-    }
-    if(resp.status === 400){
-        document.getElementById('errorMsg').style.display = 'block';
-        return;
-    }
-    // qualquer outro erro
-    alert('Erro ao fazer login: ' + resp.status);
-});
-</script>
 </body>
 </html>

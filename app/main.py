@@ -168,11 +168,9 @@ async def teste_pix_page(request: Request,current_user:User=Depends(get_current_
     @app.get('/admin/reset')
 async def reset_database(db: Session = Depends(get_db)):
     try:
-        # Apaga todos os registros
         db.query(User).delete()
         db.commit()
         return {'message': 'Todos os cadastros foram apagados com sucesso'}
     except Exception as e:
         db.rollback()
         return {'error': str(e)}
-    """)

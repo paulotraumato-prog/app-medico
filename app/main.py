@@ -54,8 +54,8 @@ async def login(
 ):
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
-        # 400 será tratado pelo JS do login.html
-        raise HTTPException(status_code=400, detail='Email ou senha incorretos')
+        # redireciona de volta para a tela de login com ?error=1
+        return RedirectResponse(url='/login?error=1', status_code=303)
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(

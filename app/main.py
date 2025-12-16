@@ -146,7 +146,7 @@ async def criar_pagamento_pix(
 
     amount = 50.0
 
-    preference_data = {
+        preference_data = {
         "items": [
             {
                 "title": "Renovação de receita / relatório médico",
@@ -162,8 +162,8 @@ async def criar_pagamento_pix(
             "excluded_payment_types": [
                 {"id": "credit_card"},
                 {"id": "debit_card"}
-            ],
-            "default_payment_method_id": "pix"
+            ]
+            # removemos o "default_payment_method_id": "pix"
         },
         "back_urls": {
             "success": "https://app-medico-hfb0.onrender.com/",
@@ -171,6 +171,7 @@ async def criar_pagamento_pix(
             "pending": "https://app-medico-hfb0.onrender.com/"
         },
         "auto_return": "approved"
+    }
     }
 
     headers = {

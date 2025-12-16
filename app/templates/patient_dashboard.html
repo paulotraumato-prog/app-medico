@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard do Paciente - App Médico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;margin:0;padding:0}
+        .container{max-width:800px;margin:40px auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+        h1{text-align:center;margin-bottom:16px}
+        .header{display:flex;justify-content:space-between;align-items:center;margin-bottom:20px}
+        .header a{text-decoration:none;color:#1976d2;font-weight:bold}
+        .case-list{margin-top:20px}
+        .case-item{background:#f9f9f9;border:1px solid #eee;padding:15px;margin-bottom:10px;border-radius:5px;display:flex;justify-content:space-between;align-items:center}
+        .case-item h3{margin:0;font-size:18px;color:#333}
+        .case-item p{margin:5px 0;font-size:14px;color:#666}
+        .case-item .status{font-weight:bold;color:#1976d2}
+        .case-item .status.pending_payment{color:#ff9800}
+        .case-item .status.pending_review{color:#2196f3}
+        .case-item .status.approved{color:#4caf50}
+        .case-item .status.rejected{color:#f44336}
+        .case-item a{background:#1976d2;color:#fff;padding:8px 12px;border-radius:4px;text-decoration:none;font-size:14px}
+        .case-item a:hover{background:#115293}
+        .no-cases{text-align:center;color:#666;margin-top:30px}
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Dashboard do Paciente</h1>
+        <a href="/logout">Sair</a>
+    </div>
+    <p>Olá, {{ user.full_name }} ({{ user.email }})!</p>
+
+    <div class="header">
+        <h2>Meus Pedidos</h2>
+        <a href="/patient/new-case">Novo Pedido</a>
+    </div>
+
+    <div class="case-list">
+        {% if cases %}
+            {% for case in cases %}
+                <div class="case-item">
+                    <div>
+                        <h3>Pedido #{{ case.id }} - {{ case.request_type|capitalize }}</h3>
+                        <p>Status: <span class="status {{ case.status }}">{{ case.status|replace('_', ' ')|capitalize }}</span></p>
+                        <p>Criado em: {{ case.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+                    </div>
+                    <div>
+                        {% if case.status == 'pending_payment' %}
+                            <a href="/patient/pay-case/{{ case.id }}">Pagar Agora</a>
+                        {% elif case.status == 'approved' %}
+                            <a href="/patient/view-document/{{ case.id }}">Ver Documento</a>
+                        {% elif case.status == 'rejected' %}
+                            <a href="/patient/view-case/{{ case.id }}">Ver Detalhes</a>
+                        {% endif %}
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+            <p class="no-cases">Você ainda não tem nenhum pedido. <a href="/patient/new-case">Crie um novo!</a></p>
+        {% endif %}
+    </div>
+</div>
+</body>
+</html>

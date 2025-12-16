@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Revisar Pedido #{{ case.id }} - App Médico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;margin:0;padding:0}
+        .container{max-width:800px;margin:40px auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+        h1{text-align:center;margin-bottom:16px}
+        p{font-size:16px;line-height:1.5}
+        strong{font-weight:bold}
+        textarea{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:4px;font-size:14px;min-height:100px}
+        .actions{display:flex;justify-content:space-between;margin-top:20px}
+        .actions button{padding:10px 15px;border-radius:4px;border:none;font-size:15px;cursor:pointer;width:48%}
+        .actions .approve{background:#4caf50;color:#fff}
+        .actions .approve:hover{background:#388e3c}
+        .actions .reject{background:#f44336;color:#fff}
+        .actions .reject:hover{background:#d32f2f}
+        .back-link{margin-top:20px;text-align:center;font-size:14px}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Revisar Pedido #{{ case.id }}</h1>
+    <p><strong>Tipo:</strong> {{ case.request_type|capitalize }}</p>
+    <p><strong>Status Atual:</strong> {{ case.status|replace('_', ' ')|capitalize }}</p>
+    <p><strong>Paciente:</strong> {{ patient.full_name }} ({{ patient.email }})</p>
+    <p><strong>CPF do Paciente:</strong> {{ patient.cpf }}</p>
+    <p><strong>Telefone do Paciente:</strong> {{ patient.phone }}</p>
+    <p><strong>Criado em:</strong> {{ case.created_at.strftime('%d/%m/%Y %H:%M') }}</p>
+
+    <form method="post" action="/doctor/review-case/{{ case.id }}">
+        <label for="rejection_reason">Motivo da Rejeição (opcional, se for rejeitar)</label>
+        <textarea id="rejection_reason" name="rejection_reason"></textarea>
+
+        <div class="actions">
+            <button type="submit" name="action" value="approve" class="approve">Aprovar e Assinar</button>
+            <button type="submit" name="action" value="reject" class="reject">Rejeitar</button>
+        </div>
+    </form>
+
+    <div class="back-link">
+        <a href="/doctor/dashboard">Voltar para o Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

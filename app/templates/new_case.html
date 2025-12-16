@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Novo Pedido - App Médico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;margin:0;padding:0}
+        .container{max-width:400px;margin:40px auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+        h1{text-align:center;margin-bottom:16px}
+        label{display:block;margin-top:12px;font-size:14px}
+        select, button{width:100%;padding:8px;margin-top:4px;border:1px solid #ccc;border-radius:4px;font-size:14px}
+        button{margin-top:20px;padding:10px;background:#1976d2;color:#fff;border:none;border-radius:4px;font-size:15px;cursor:pointer}
+        button:hover{background:#115293}
+        .back-link{margin-top:20px;text-align:center;font-size:14px}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Novo Pedido</h1>
+    <form method="post" action="/patient/new-case">
+        <label for="request_type">Tipo de Pedido</label>
+        <select id="request_type" name="request_type" required>
+            <option value="receita">Renovação de Receita</option>
+            <option value="relatorio">Relatório Médico</option>
+        </select>
+
+        <button type="submit">Criar Pedido</button>
+    </form>
+    <div class="back-link">
+        <a href="/patient/dashboard">Voltar para o Dashboard</a>
+    </div>
+</div>
+</body>
+</html>

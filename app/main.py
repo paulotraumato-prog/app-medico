@@ -142,6 +142,8 @@ async def criar_pagamento_pix(
             detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).'
         )
 
+    import requests
+
     amount = 50.0
 
     preference_data = {
@@ -171,48 +173,38 @@ async def criar_pagamento_pix(
         "auto_return": "approved"
     }
 
+    headers = {
+        "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+
     try:
-        import requests
-        
-        headers = {
-            "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
-            "Content-Type": "application/json"
-        }
-        
         response = requests.post(
             "https://api.mercadopago.com/checkout/preferences",
             json=preference_data,
-            headers=headers
+            headers=headers,
+            timeout=10
         )
-        
-        print("=== STATUS CODE ===")
-        print(response.status_code)
-        print("=== RESPOSTA MERCADO PAGO ===")
-        print(response.json())
-        print("=============================")
-        
+
         if response.status_code != 201:
+            # se der erro, devolve o corpo inteiro pra gente ver
             raise HTTPException(
                 status_code=500,
-                detail=f"Erro do Mercado Pago: {response.json()}"
+                detail=f"Erro do Mercado Pago: {response.status_code} - {response.text}"
             )
-        
+
         data = response.json()
+
+        # aqui é exatamente onde vimos no /debug-mp
         init_point = data.get("init_point")
-        
         if not init_point:
             raise HTTPException(
                 status_code=500,
                 detail=f"init_point não encontrado. Resposta: {data}"
             )
-        
+
         return {"checkout_url": init_point}
-        
-    except requests.exceptions.RequestException as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Erro de conexão com Mercado Pago: {str(e)}"
-        )
+
     except Exception as e:
         raise HTTPException(
             status_code=500,

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Pagar Pedido #{{ case.id }} - App Médico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body{font-family:Arial,Helvetica,sans-serif;background:#f5f5f5;margin:0;padding:0}
+        .container{max-width:600px;margin:40px auto;background:#fff;padding:24px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+        h1{text-align:center;margin-bottom:16px}
+        p{font-size:16px;line-height:1.5}
+        strong{font-weight:bold}
+        button{width:100%;margin-top:20px;padding:12px;background:#1976d2;color:#fff;border:none;border-radius:4px;font-size:16px;cursor:pointer}
+        button:hover{background:#115293}
+        .status-message{margin-top:20px;text-align:center;font-weight:bold;color:#333}
+        .back-link{margin-top:20px;text-align:center;font-size:14px}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>Pagar Pedido #{{ case.id }}</h1>
+    <p><strong>Tipo:</strong> {{ case.request_type|capitalize }}</p>
+    <p><strong>Status Atual:</strong> {{ case.status|replace('_', ' ')|capitalize }}</p>
+    <p><strong>Valor:</strong> R$ 50,00</p>
+    <p>Para que seu pedido seja revisado pelo médico, é necessário efetuar o pagamento.</p>
+
+    <button onclick="gerarPix()">Pagar com PIX</button>
+    <p id="status-message" class="status-message"></p>
+
+    <div class="back-link">
+        <a href="/patient/dashboard">Voltar para o Dashboard</a>
+    </div>
+
+    <script>
+        async function gerarPix(){
+            document.getElementById('status-message').innerText = 'Gerando pagamento...';
+            try{
+                const tokenCookie = document.cookie.split('access_token=')[1];
+                const token = tokenCookie ? tokenCookie.split(';')[0] : '';
+                const resp = await fetch('/patient/pay-case/{{ case.id }}/generate-pix', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': token
+                    }
+                });
+                if(!resp.ok){
+                    const err = await resp.json();
+                    document.getElementById('status-message').innerText = 'Erro: ' + (err.detail || resp.status);
+                    return;
+                }
+                const data = await resp.json();
+                document.getElementById('status-message').innerText = 'Redirecionando para o Mercado Pago...';
+                window.location.href = data.checkout_url;
+            }catch(e){
+                document.getElementById('status-message').innerText = 'Erro: ' + e;
+            }
+        }
+    </script>
+</div>
+</body>
+</html>

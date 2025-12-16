@@ -263,3 +263,52 @@ async def teste_pix_page(request: Request, current_user: User = Depends(get_curr
     </html>
     """ % (current_user.email)
     return HTMLResponse(html)
+@app.get('/debug-mp')
+async def debug_mercadopago():
+    """Rota de debug para testar API do Mercado Pago"""
+    
+    if not MERCADOPAGO_ACCESS_TOKEN:
+        return {
+            "erro": "MERCADOPAGO_ACCESS_TOKEN não configurado",
+            "dica": "Configure no Render → Environment"
+        }
+    
+    import requests
+    
+    # Dados mínimos para criar uma preference
+    preference_data = {
+        "items": [
+            {
+                "title": "Teste",
+                "quantity": 1,
+                "unit_price": 10.0,
+                "currency_id": "BRL"
+            }
+        ]
+    }
+    
+    headers = {
+        "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    
+    try:
+        response = requests.post(
+            "https://api.mercadopago.com/checkout/preferences",
+            json=preference_data,
+            headers=headers,
+            timeout=10
+        )
+        
+        return {
+            "status_code": response.status_code,
+            "headers": dict(response.headers),
+            "body": response.json() if response.text else None,
+            "token_usado": MERCADOPAGO_ACCESS_TOKEN[:20] + "..." # mostra só o começo
+        }
+        
+    except Exception as e:
+        return {
+            "erro": str(e),
+            "tipo": type(e).__name__
+        }

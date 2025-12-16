@@ -146,7 +146,7 @@ async def criar_pagamento_pix(
 
     amount = 50.0
 
-        preference_data = {
+    preference_data = {
         "items": [
             {
                 "title": "Renovação de receita / relatório médico",
@@ -159,11 +159,11 @@ async def criar_pagamento_pix(
             "email": current_user.email
         },
         "payment_methods": {
+            # SOMENTE exclui cartão; NÃO define default_payment_method_id
             "excluded_payment_types": [
                 {"id": "credit_card"},
                 {"id": "debit_card"}
             ]
-            # removemos o "default_payment_method_id": "pix"
         },
         "back_urls": {
             "success": "https://app-medico-hfb0.onrender.com/",
@@ -172,7 +172,6 @@ async def criar_pagamento_pix(
         },
         "auto_return": "approved"
     }
-    }
 
     headers = {
         "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
@@ -180,6 +179,11 @@ async def criar_pagamento_pix(
     }
 
     try:
+        # LOG do que estamos mandando
+        print("=== PREFERENCE ENVIADA ===")
+        print(preference_data)
+        print("==========================")
+
         response = requests.post(
             "https://api.mercadopago.com/checkout/preferences",
             json=preference_data,
@@ -187,23 +191,17 @@ async def criar_pagamento_pix(
             timeout=15
         )
 
-        # LOG bem detalhado
         print("=== MP /checkout/preferences ===")
         print("STATUS:", response.status_code)
-        try:
-            print("BODY:", response.text)
-        except Exception:
-            pass
+        print("BODY:", response.text)
         print("================================")
 
-        # Se não for 201, devolve erro bruto
         if response.status_code != 201:
             raise HTTPException(
                 status_code=500,
                 detail=f"Erro do Mercado Pago: {response.status_code} - {response.text}"
             )
 
-        # Tenta interpretar JSON
         try:
             data = response.json()
         except json.JSONDecodeError:
@@ -214,7 +212,6 @@ async def criar_pagamento_pix(
 
         init_point = data.get("init_point")
         if not init_point:
-            # se não achar, devolve o JSON completo para debug
             raise HTTPException(
                 status_code=500,
                 detail=f"init_point não encontrado. Resposta: {data}"
@@ -223,10 +220,8 @@ async def criar_pagamento_pix(
         return {"checkout_url": init_point}
 
     except HTTPException:
-        # re-levanta o erro com detail preenchido acima
         raise
     except Exception as e:
-        # qualquer outra exceção: devolve repr(e)
         raise HTTPException(
             status_code=500,
             detail=f"Erro ao criar pagamento PIX (exceção): {repr(e)}"

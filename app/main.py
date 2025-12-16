@@ -142,7 +142,7 @@ async def criar_pagamento_pix(
             detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).'
         )
 
-    import requests
+    import requests, json
 
     amount = 50.0
 
@@ -183,21 +183,37 @@ async def criar_pagamento_pix(
             "https://api.mercadopago.com/checkout/preferences",
             json=preference_data,
             headers=headers,
-            timeout=10
+            timeout=15
         )
 
+        # LOG bem detalhado
+        print("=== MP /checkout/preferences ===")
+        print("STATUS:", response.status_code)
+        try:
+            print("BODY:", response.text)
+        except Exception:
+            pass
+        print("================================")
+
+        # Se não for 201, devolve erro bruto
         if response.status_code != 201:
-            # se der erro, devolve o corpo inteiro pra gente ver
             raise HTTPException(
                 status_code=500,
                 detail=f"Erro do Mercado Pago: {response.status_code} - {response.text}"
             )
 
-        data = response.json()
+        # Tenta interpretar JSON
+        try:
+            data = response.json()
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Resposta inválida do Mercado Pago (não é JSON): {response.text}"
+            )
 
-        # aqui é exatamente onde vimos no /debug-mp
         init_point = data.get("init_point")
         if not init_point:
+            # se não achar, devolve o JSON completo para debug
             raise HTTPException(
                 status_code=500,
                 detail=f"init_point não encontrado. Resposta: {data}"
@@ -205,10 +221,14 @@ async def criar_pagamento_pix(
 
         return {"checkout_url": init_point}
 
+    except HTTPException:
+        # re-levanta o erro com detail preenchido acima
+        raise
     except Exception as e:
+        # qualquer outra exceção: devolve repr(e)
         raise HTTPException(
             status_code=500,
-            detail=f"Erro ao criar pagamento PIX: {str(e)}"
+            detail=f"Erro ao criar pagamento PIX (exceção): {repr(e)}"
         )
 
 

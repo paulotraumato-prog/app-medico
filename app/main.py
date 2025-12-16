@@ -4,17 +4,16 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 from datetime import timedelta
 import mercadopago
-from .database import get_db,init_db,User
+from .database import get_db,init_db,User,Case,Document
 from .auth import get_password_hash,verify_password,create_access_token,get_current_user
 from .config import *
 import os
+import requests, json # Importar requests e json aqui
 
 app = FastAPI(title='App Médico')
 templates = Jinja2Templates(directory='app/templates')
-mp = mercadopago.SDK(MERCADOPAGO_ACCESS_TOKEN) if MERCADOPAGO_ACCESS_TOKEN else None
 
-
-# ---------- PÁGINA INICIAL (protegia por login) ----------
+# ---------- PÁGINA INICIAL (protegida por login) ----------
 
 @app.get('/', response_class=HTMLResponse)
 async def home(request: Request, current_user: User = Depends(get_current_user)):
@@ -23,7 +22,8 @@ async def home(request: Request, current_user: User = Depends(get_current_user))
         'index.html',
         {
             'request': request,
-            'user': current_user
+            'user': current_user,
+            'is_doctor': current_user.user_type == 'doctor'
         }
     )
 
@@ -54,7 +54,6 @@ async def login(
 ):
     user = db.query(User).filter(User.email == email).first()
     if not user or not verify_password(password, user.hashed_password):
-        # redireciona de volta para a tela de login com ?error=1
         return RedirectResponse(url='/login?error=1', status_code=303)
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -121,7 +120,9 @@ async def register(
 @app.get('/admin/reset')
 async def reset_database(db: Session = Depends(get_db)):
     try:
-        db.query(User).delete()
+        db.query(Document).delete() # Apaga documentos primeiro
+        db.query(Case).delete()     # Apaga casos
+        db.query(User).delete()     # Apaga usuários
         db.commit()
         return {'message': 'Todos os cadastros foram apagados com sucesso'}
     except Exception as e:
@@ -142,8 +143,6 @@ async def criar_pagamento_pix(
             detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).'
         )
 
-    import requests, json
-
     amount = 50.0
 
     preference_data = {
@@ -159,7 +158,6 @@ async def criar_pagamento_pix(
             "email": current_user.email
         },
         "payment_methods": {
-            # SOMENTE exclui cartão; NÃO define default_payment_method_id
             "excluded_payment_types": [
                 {"id": "credit_card"},
                 {"id": "debit_card"}
@@ -179,11 +177,6 @@ async def criar_pagamento_pix(
     }
 
     try:
-        # LOG do que estamos mandando
-        print("=== PREFERENCE ENVIADA ===")
-        print(preference_data)
-        print("==========================")
-
         response = requests.post(
             "https://api.mercadopago.com/checkout/preferences",
             json=preference_data,
@@ -191,24 +184,13 @@ async def criar_pagamento_pix(
             timeout=15
         )
 
-        print("=== MP /checkout/preferences ===")
-        print("STATUS:", response.status_code)
-        print("BODY:", response.text)
-        print("================================")
-
         if response.status_code != 201:
             raise HTTPException(
                 status_code=500,
                 detail=f"Erro do Mercado Pago: {response.status_code} - {response.text}"
             )
 
-        try:
-            data = response.json()
-        except json.JSONDecodeError:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Resposta inválida do Mercado Pago (não é JSON): {response.text}"
-            )
+        data = response.json()
 
         init_point = data.get("init_point")
         if not init_point:
@@ -271,52 +253,270 @@ async def teste_pix_page(request: Request, current_user: User = Depends(get_curr
     </html>
     """ % (current_user.email)
     return HTMLResponse(html)
-@app.get('/debug-mp')
-async def debug_mercadopago():
-    """Rota de debug para testar API do Mercado Pago"""
+
+
+# ---------- ROTAS DE PACIENTE ----------
+
+@app.get('/patient/dashboard', response_class=HTMLResponse)
+async def patient_dashboard(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
     
-    if not MERCADOPAGO_ACCESS_TOKEN:
-        return {
-            "erro": "MERCADOPAGO_ACCESS_TOKEN não configurado",
-            "dica": "Configure no Render → Environment"
+    cases = db.query(Case).filter(Case.patient_id == current_user.id).order_by(Case.created_at.desc()).all()
+    
+    return templates.TemplateResponse(
+        'patient_dashboard.html',
+        {
+            'request': request,
+            'user': current_user,
+            'cases': cases
         }
+    )
+
+@app.get('/patient/new-case', response_class=HTMLResponse)
+async def new_case_page(request: Request, current_user: User = Depends(get_current_user)):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    return templates.TemplateResponse('new_case.html', {'request': request, 'user': current_user})
+
+@app.post('/patient/new-case')
+async def create_new_case(
+    request_type: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
     
-    import requests
+    new_case = Case(patient_id=current_user.id, request_type=request_type, status='pending_payment')
+    db.add(new_case)
+    db.commit()
+    db.refresh(new_case)
     
-    # Dados mínimos para criar uma preference
+    # Redireciona para a página de pagamento do caso
+    return RedirectResponse(url=f'/patient/pay-case/{new_case.id}', status_code=303)
+
+
+@app.get('/patient/pay-case/{case_id}', response_class=HTMLResponse)
+async def pay_case_page(request: Request, case_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    case = db.query(Case).filter(Case.id == case_id, Case.patient_id == current_user.id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail='Caso não encontrado')
+    if case.status != 'pending_payment':
+        return RedirectResponse(url='/patient/dashboard', status_code=303) # Já pago ou em revisão
+    
+    return templates.TemplateResponse(
+        'pay_case.html',
+        {
+            'request': request,
+            'user': current_user,
+            'case': case
+        }
+    )
+
+@app.post('/patient/pay-case/{case_id}/generate-pix')
+async def generate_pix_for_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    case = db.query(Case).filter(Case.id == case_id, Case.patient_id == current_user.id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail='Caso não encontrado')
+    if case.status != 'pending_payment':
+        raise HTTPException(status_code=400, detail='Caso já pago ou em revisão')
+
+    if not MERCADOPAGO_ACCESS_TOKEN:
+        raise HTTPException(
+            status_code=500,
+            detail='Mercado Pago não configurado (ACCESS_TOKEN ausente).'
+        )
+
+    amount = 50.0 # Valor fixo por enquanto
+
     preference_data = {
         "items": [
             {
-                "title": "Teste",
+                "title": f"Pagamento Caso #{case.id} - {case.request_type}",
                 "quantity": 1,
-                "unit_price": 10.0,
+                "unit_price": amount,
                 "currency_id": "BRL"
             }
-        ]
+        ],
+        "payer": {
+            "email": current_user.email
+        },
+        "payment_methods": {
+            "excluded_payment_types": [
+                {"id": "credit_card"},
+                {"id": "debit_card"}
+            ]
+        },
+        "back_urls": {
+            "success": f"https://app-medico-hfb0.onrender.com/patient/case/{case.id}/status?payment_status=success",
+            "failure": f"https://app-medico-hfb0.onrender.com/patient/case/{case.id}/status?payment_status=failure",
+            "pending": f"https://app-medico-hfb0.onrender.com/patient/case/{case.id}/status?payment_status=pending"
+        },
+        "auto_return": "approved",
+        "external_reference": str(case.id) # Usar o ID do caso como referência externa
     }
-    
+
     headers = {
         "Authorization": f"Bearer {MERCADOPAGO_ACCESS_TOKEN}",
         "Content-Type": "application/json"
     }
-    
+
     try:
         response = requests.post(
             "https://api.mercadopago.com/checkout/preferences",
             json=preference_data,
             headers=headers,
-            timeout=10
+            timeout=15
         )
+
+        if response.status_code != 201:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Erro do Mercado Pago: {response.status_code} - {response.text}"
+            )
+
+        data = response.json()
+        init_point = data.get("init_point")
+        if not init_point:
+            raise HTTPException(
+                status_code=500,
+                detail=f"init_point não encontrado. Resposta: {data}"
+            )
         
-        return {
-            "status_code": response.status_code,
-            "headers": dict(response.headers),
-            "body": response.json() if response.text else None,
-            "token_usado": MERCADOPAGO_ACCESS_TOKEN[:20] + "..." # mostra só o começo
-        }
-        
+        # Atualiza o payment_id no caso
+        case.payment_id = data.get('id') # ID da preferência do MP
+        db.add(case)
+        db.commit()
+        db.refresh(case)
+
+        return {"checkout_url": init_point}
+
     except Exception as e:
-        return {
-            "erro": str(e),
-            "tipo": type(e).__name__
+        raise HTTPException(
+            status_code=500,
+            detail=f"Erro ao criar pagamento PIX: {repr(e)}"
+        )
+
+@app.get('/patient/case/{case_id}/status', response_class=HTMLResponse)
+async def case_payment_status(
+    request: Request,
+    case_id: int,
+    payment_status: str, # success, failure, pending
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    if current_user.user_type != 'patient':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    case = db.query(Case).filter(Case.id == case_id, Case.patient_id == current_user.id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail='Caso não encontrado')
+    
+    # Atualiza o status do pagamento no caso
+    case.payment_status = payment_status
+    if payment_status == 'success':
+        case.status = 'pending_review' # Se pagou, vai para revisão
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+
+    return templates.TemplateResponse(
+        'case_status.html',
+        {
+            'request': request,
+            'user': current_user,
+            'case': case,
+            'payment_status': payment_status
         }
+    )
+
+
+# ---------- ROTAS DE MÉDICO ----------
+
+@app.get('/doctor/dashboard', response_class=HTMLResponse)
+async def doctor_dashboard(request: Request, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.user_type != 'doctor':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    # Casos pendentes de revisão (já pagos)
+    pending_cases = db.query(Case).filter(Case.status == 'pending_review').order_by(Case.created_at.asc()).all()
+    
+    # Casos que o médico já revisou
+    my_reviewed_cases = db.query(Case).filter(Case.doctor_id == current_user.id).order_by(Case.updated_at.desc()).all()
+
+    return templates.TemplateResponse(
+        'doctor_dashboard.html',
+        {
+            'request': request,
+            'user': current_user,
+            'pending_cases': pending_cases,
+            'my_reviewed_cases': my_reviewed_cases
+        }
+    )
+
+@app.get('/doctor/review-case/{case_id}', response_class=HTMLResponse)
+async def review_case_page(request: Request, case_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user.user_type != 'doctor':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail='Caso não encontrado')
+    if case.status != 'pending_review':
+        return RedirectResponse(url='/doctor/dashboard', status_code=303) # Já revisado ou não pago
+    
+    return templates.TemplateResponse(
+        'review_case.html',
+        {
+            'request': request,
+            'user': current_user,
+            'case': case,
+            'patient': case.patient # Acesso aos dados do paciente
+        }
+    )
+
+@app.post('/doctor/review-case/{case_id}')
+async def submit_review_case(
+    case_id: int,
+    action: str = Form(...), # 'approve' ou 'reject'
+    rejection_reason: str = Form(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    if current_user.user_type != 'doctor':
+        raise HTTPException(status_code=403, detail='Acesso negado')
+    
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail='Caso não encontrado')
+    if case.status != 'pending_review':
+        raise HTTPException(status_code=400, detail='Caso já revisado ou não pago')
+    
+    case.doctor_id = current_user.id
+    case.updated_at = datetime.utcnow()
+
+    if action == 'approve':
+        case.status = 'approved'
+        # TODO: Gerar e assinar o documento aqui na Etapa 2
+    elif action == 'reject':
+        case.status = 'rejected'
+        case.rejection_reason = rejection_reason
+    else:
+        raise HTTPException(status_code=400, detail='Ação inválida')
+    
+    db.add(case)
+    db.commit()
+    db.refresh(case)
+    
+    return RedirectResponse(url='/doctor/dashboard', status_code=303)

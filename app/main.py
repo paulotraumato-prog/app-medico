@@ -62,7 +62,15 @@ async def login(
         expires_delta=access_token_expires
     )
 
-    response = RedirectResponse(url='/', status_code=303)
+    # Decide o destino conforme o tipo de usuário
+    if user.user_type == 'patient':
+        redirect_url = '/patient/dashboard'
+    elif user.user_type == 'doctor':
+        redirect_url = '/doctor/dashboard'
+    else:
+        redirect_url = '/'
+
+    response = RedirectResponse(url=redirect_url, status_code=303)
     response.set_cookie(
         key='access_token',
         value=f'Bearer {access_token}',
